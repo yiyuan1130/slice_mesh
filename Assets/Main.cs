@@ -50,7 +50,8 @@ public class Main : MonoBehaviour {
 		DebugPoint(upVertices, Color.blue, 0.019f);
 		DebugPoint(downVertics, Color.green, 0.019f);
 		DebugPoint(onVertices, Color.yellow, 0.019f);
-		GetLinePanelTriangles();
+		List<int[]> tirs = GetLinePanelTriangles();
+		CaculateLinePanelPoint(tirs);
 	}
 
 	void DrawPanel(){
@@ -102,7 +103,7 @@ public class Main : MonoBehaviour {
 
 	// 2. 计算与面相交的三角形
 	// 三角形的三个点不在面的同一侧
-	void GetLinePanelTriangles(){
+	List<int[]> GetLinePanelTriangles(){
 		Vector3 panelNormalVec = panel.transform.up;
 		Vector3 panelCenterPos = panel.transform.position;
 
@@ -133,8 +134,6 @@ public class Main : MonoBehaviour {
 			}
 		}
 
-		Debug.Log("++++++++ " + tris.Count);
-
 
 		// debug
 		for (int i = 0; i < tris.Count; i++)
@@ -145,6 +144,53 @@ public class Main : MonoBehaviour {
 				DebugPoint(mesh.vertices[tris[i][j]], Color.red, 0.02f);
 			}
 		}
+		return tris;
+	}
+
+	void CaculateLinePanelPoint(List<int[]> triangles){
+		Vector3 panelNormalVec = panel.transform.up;
+		Vector3 panelCenterPos = panel.transform.position;
+		List<Vector3> lisePanelPoints = new List<Vector3>();
+		for (int i = 0; i < triangles.Count; i++)
+		{
+			List<Vector3> upPos = new List<Vector3>();
+			List<Vector3> downPos = new List<Vector3>();
+			for (int j = 0; j < triangles[i].Length; j++)
+			{
+				Vector3 vert = mesh.vertices[triangles[i][j]];
+				Vector3 worldPos = ObjectPosToWorldPos(vert, meshObject);
+				float dis = CaculatePos(panelNormalVec, panelCenterPos, worldPos);
+				if (dis > 0){
+					upPos.Add(worldPos);
+				}
+				else if (dis < 0){
+					downPos.Add(worldPos);
+				}
+			}
+			if (downPos.Count == 1 && upPos.Count == 2){
+				lisePanelPoints.Add(GetLinePanelPoint(downPos[0], upPos[0], panelCenterPos, panelNormalVec));
+				lisePanelPoints.Add(GetLinePanelPoint(downPos[0], upPos[1], panelCenterPos, panelNormalVec));
+			}
+			else if (downPos.Count == 2 && upPos.Count == 1){
+				lisePanelPoints.Add(GetLinePanelPoint(downPos[0], upPos[0], panelCenterPos, panelNormalVec));
+				lisePanelPoints.Add(GetLinePanelPoint(downPos[1], upPos[0], panelCenterPos, panelNormalVec));
+			}
+		}
+	}
+	Vector3 GetLinePanelPoint(Vector3 line_p1, Vector3 line_p2, Vector3 panel_p, Vector3 panel_normal){
+		Vector3 lineDir = (line_p2 - line_p1).normalized;
+		float t = lineDir.x * panel_normal.x + lineDir.y * panel_normal.y + lineDir.z * panel_normal.z;
+		if (t == 0){
+			//方向向量与平面平行，没有交点
+			return Vector3.zero;
+        }
+		float m = ((panel_p.x - line_p1.x) * panel_normal.x +
+					(panel_p.y - line_p1.y) * panel_normal.y +
+					(panel_p.z - line_p1.z) * panel_normal.z) / t;
+		// Vector3 p = new Vector3(line_p1.x + lineDir.x * m, line_p1.y + lineDir.y * m, line_p1.z + lineDir.z * m);
+		Vector3 p = line_p1 + lineDir * m;
+		DebugPoint(p, Color.yellow, 0.02f, false);
+		return p;
 	}
 
 	List<GameObject> debugPoints = new List<GameObject>();
@@ -168,14 +214,19 @@ public class Main : MonoBehaviour {
 		}
 	}
 
-	void DebugPoint(Vector3 point, Color? color = null, float? scale = null){
+	void DebugPoint(Vector3 point, Color? color = null, float? scale = null, bool translateToWorld = true){
 		color = color != null ? color : Color.red;
 		scale = scale != null ? scale : 0.05f;
 		GameObject go = GameObject.Instantiate(testPoint);
 		go.SetActive(true);
 		debugPoints.Add(go);
 		go.transform.localScale = Vector3.one * (float)scale;
-		go.transform.position = ObjectPosToWorldPos(point, meshObject);
+		if (translateToWorld){
+			go.transform.position = ObjectPosToWorldPos(point, meshObject);
+		}
+		else{
+			go.transform.position = point;
+		}
 		go.GetComponent<MeshRenderer>().material.SetColor("_Color", (Color)color);
 	}
 }
