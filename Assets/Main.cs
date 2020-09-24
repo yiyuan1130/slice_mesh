@@ -43,15 +43,27 @@ public class Main : MonoBehaviour {
 		List<Vector3> downVertics = new List<Vector3>();
 		List<Vector3> onVertices = new List<Vector3>();
 		SplitVerticesByPanel(out upVertices, out downVertics, out onVertices);
-		// Debug.Log("upVertices " + upVertices.Count);
-		// Debug.Log("downVertics " + downVertics.Count);
-		// Debug.Log("onVertices " + onVertices.Count);
 		DebugClearPoint();
 		DebugPoint(upVertices, Color.blue, 0.019f);
 		DebugPoint(downVertics, Color.green, 0.019f);
 		DebugPoint(onVertices, Color.yellow, 0.019f);
-		List<int[]> tirs = GetLinePanelTriangles();
-		CaculateLinePanelPoint(tirs);
+		List<int[]> upTris = new List<int[]>();
+		List<int[]> downTris = new List<int[]>();
+		List<int[]> midTirs = GetLinePanelTriangles(out upTris, out downTris);
+
+		List<List<Vector3>> midAndUpVerts = new List<List<Vector3>>();
+		List<List<Vector3>> midAndDownVerts = new List<List<Vector3>>();
+		List<Vector3> midVertices = CaculateLinePanelPoint(midTirs, out midAndUpVerts, out midAndDownVerts);
+		// CreateNewMesh(upTris, midAndDownVerts);
+		// CreateNewMesh(downTris, midAndUpVerts);
+		// HideOther();
+	}
+
+	void HideOther(){
+		DebugClearPoint();
+		meshObject.SetActive(false);
+		lineRenderer.gameObject.SetActive(false);
+		panel.gameObject.SetActive(false);
 	}
 
 	void DrawPanel(){
@@ -106,7 +118,9 @@ public class Main : MonoBehaviour {
 
 	// 2. 计算与面相交的三角形
 	// 三角形的三个点不在面的同一侧
-	List<int[]> GetLinePanelTriangles(){
+	List<int[]> GetLinePanelTriangles(out List<int[]> upTris, out List<int[]> downTris){
+		upTris = new List<int[]>();
+		downTris = new List<int[]>();
 		Vector3 panelNormalVec = panel.transform.up;
 		Vector3 panelCenterPos = panel.transform.position;
 
@@ -128,12 +142,19 @@ public class Main : MonoBehaviour {
 					upCount ++;
 				}
 			}
+			int[] tri = new int[3]{
+				triangles[i + 0],
+				triangles[i + 1],
+				triangles[i + 2],
+			};
 			if ((upCount == 1 && downCount == 2) || (upCount == 2 && downCount == 1)){
-				tris.Add(new int[]{
-					triangles[i + 0],
-					triangles[i + 1],
-					triangles[i + 2],
-				});
+				tris.Add(tri);
+			}
+			if (upCount == 3 && downCount == 0){
+				upTris.Add(tri);
+			}
+			else if (upCount == 0 && downCount == 3){
+				downTris.Add(tri);
 			}
 		}
 
@@ -143,19 +164,25 @@ public class Main : MonoBehaviour {
 		{
 			for (int j = 0; j < tris[i].Length; j++)
 			{
-				Debug.Log(tris[i][j]);
 				DebugPoint(mesh.vertices[tris[i][j]], Color.red, 0.02f);
 			}
 		}
 		return tris;
 	}
 
-	void CaculateLinePanelPoint(List<int[]> triangles){
+	List<Vector3> CaculateLinePanelPoint(List<int[]> triangles, out List<List<Vector3>> midAndDownVerts, out List<List<Vector3>> midAndUpVerts){
 		Vector3 panelNormalVec = panel.transform.up;
 		Vector3 panelCenterPos = panel.transform.position;
-		List<Vector3> lisePanelPoints = new List<Vector3>();
+		midAndDownVerts = new List<List<Vector3>>();
+		midAndUpVerts = new List<List<Vector3>>();
+		List<Vector3> linePanelPoints = new List<Vector3>();
 		for (int i = 0; i < triangles.Count; i++)
 		{
+			List<Vector3> perUp = new List<Vector3>();
+			List<Vector3> perdown = new List<Vector3>();
+			List<Vector3> perUp_vert = new List<Vector3>();
+			List<Vector3> downPos_vert = new List<Vector3>();
+
 			List<Vector3> upPos = new List<Vector3>();
 			List<Vector3> downPos = new List<Vector3>();
 			for (int j = 0; j < triangles[i].Length; j++)
@@ -165,24 +192,51 @@ public class Main : MonoBehaviour {
 				float dis = CaculatePos(panelNormalVec, panelCenterPos, worldPos);
 				if (dis > 0){
 					upPos.Add(worldPos);
+					perUp_vert.Add(vert);
 				}
 				else if (dis < 0){
 					downPos.Add(worldPos);
+					downPos_vert.Add(vert);
 				}
 			}
+
 			if (downPos.Count == 1 && upPos.Count == 2){
-				lisePanelPoints.Add(WorldPosToObjectPos(GetLinePanelPoint(downPos[0], upPos[0], panelCenterPos, panelNormalVec), meshObject));
-				lisePanelPoints.Add(WorldPosToObjectPos(GetLinePanelPoint(downPos[0], upPos[1], panelCenterPos, panelNormalVec), meshObject));
+				Vector3 vert1 = WorldPosToObjectPos(GetLinePanelPoint(downPos[0], upPos[0], panelCenterPos, panelNormalVec), meshObject);
+				linePanelPoints.Add(vert1);
+				Vector3 vert2 = WorldPosToObjectPos(GetLinePanelPoint(upPos[1], downPos[0], panelCenterPos, panelNormalVec), meshObject);
+				linePanelPoints.Add(vert2);
+				perUp.Add(vert1);
+				perUp.Add(perUp_vert[0]);
+				perUp.Add(perUp_vert[1]);
+				perUp.Add(vert2);
+
+				perdown.Add(vert1);
+				perdown.Add(vert2);
+				perdown.Add(downPos_vert[0]);
 			}
 			else if (downPos.Count == 2 && upPos.Count == 1){
-				lisePanelPoints.Add(WorldPosToObjectPos(GetLinePanelPoint(downPos[0], upPos[0], panelCenterPos, panelNormalVec), meshObject));
-				lisePanelPoints.Add(WorldPosToObjectPos(GetLinePanelPoint(downPos[1], upPos[0], panelCenterPos, panelNormalVec), meshObject));
+				Vector3 vert1 = WorldPosToObjectPos(GetLinePanelPoint(downPos[0], upPos[0], panelCenterPos, panelNormalVec), meshObject);
+				linePanelPoints.Add(vert1);
+				Vector3 vert2 = WorldPosToObjectPos(GetLinePanelPoint(upPos[0], downPos[1], panelCenterPos, panelNormalVec), meshObject);
+				linePanelPoints.Add(vert2);
+				perUp.Add(vert1);
+				perUp.Add(perUp_vert[0]);
+				perUp.Add(vert2);
+
+
+				perdown.Add(downPos_vert[0]);
+				perdown.Add(vert1);
+				perdown.Add(vert2);
+				perdown.Add(downPos_vert[1]);
 			}
+			midAndDownVerts.Add(perdown);
+			midAndUpVerts.Add(perUp);
 		}
-		foreach (var pos in lisePanelPoints)
+		foreach (var pos in linePanelPoints)
 		{
 			DebugPoint(pos, Color.yellow, 0.02f);
 		}
+		return linePanelPoints;
 	}
 	Vector3 GetLinePanelPoint(Vector3 line_p1, Vector3 line_p2, Vector3 panel_p, Vector3 panel_normal){
 		Vector3 lineDir = (line_p2 - line_p1).normalized;
@@ -197,6 +251,95 @@ public class Main : MonoBehaviour {
 		Vector3 p = line_p1 + lineDir * m;
 		return p;
 	}
+
+	void CreateNewMesh(List<int[]> tris, List<List<Vector3>> midPartVerts){
+		List<Vector3> vertices = new List<Vector3>();
+		List<int> triangles = new List<int>();
+		List<Vector3> normals = new List<Vector3>();
+		List<Vector2> uvs = new List<Vector2>();
+		List<Color> colors = new List<Color>();
+
+		// 通过原模型构造mesh
+		for (int i = 0; i < tris.Count; i++)
+		{
+			int[] preTir = tris[i];
+			for (int j = 0; j < preTir.Length; j++)
+			{
+				int index = preTir[j];
+				Vector3 vert = mesh.vertices[index];
+				int triIndex = i * 3 + j;
+				Vector3 normal = mesh.normals[index];
+				Vector2 uv = mesh.uv[index];
+				// Color color = mesh.colors[index];
+
+				vertices.Add(vert);
+				triangles.Add(triIndex);
+				normals.Add(normal);
+				uvs.Add(uv);
+				// colors.Add(color);
+
+			}
+		}
+
+		// 通过交点及相应的顶点构造mesh
+		for (int i = 0; i < midPartVerts.Count; i++)
+		{
+			List<Vector3> verts = midPartVerts[i];
+			List<Vector3> subVertices = new List<Vector3>();
+			List<int> subTriangles = new List<int>();
+			List<Vector3> subNormals = new List<Vector3>();
+			List<Vector2> subUVs = new List<Vector2>();
+
+			subVertices.AddRange(verts);
+			if (verts.Count == 3){
+				subTriangles.AddRange(new int[]{
+					0, 1, 2,
+				});
+			}
+			else if (verts.Count == 4){
+				subTriangles.AddRange(new int[]{
+					0, 1, 2,
+					1, 2, 3,
+				});
+			}
+			for (int j = 0; j < verts.Count; j++)
+			{
+				subNormals.Add(Vector3.one);
+				subUVs.Add(Vector2.one);
+			}
+
+			// 分别添加到真正的mesh中
+			for (int j = 0; j < subTriangles.Count; j++)
+			{
+				triangles.Add(subTriangles[j] + vertices.Count - 1);
+			}
+			vertices.AddRange(verts);
+			normals.AddRange(subNormals);
+			uvs.AddRange(subUVs);
+		}
+
+
+		Mesh newMesh = new Mesh();
+		newMesh.vertices = vertices.ToArray();
+		newMesh.triangles = triangles.ToArray();
+		newMesh.normals = normals.ToArray();
+		newMesh.uv = uvs.ToArray();
+		// newMesh.colors = colors.ToArray();
+
+		GameObject go = new GameObject("part_x");
+		go.AddComponent<MeshFilter>().mesh = newMesh;
+		go.AddComponent<MeshRenderer>().material = meshObject.GetComponent<MeshRenderer>().material;
+		go.transform.position = meshObject.transform.position;
+		go.transform.localScale = meshObject.transform.localScale;
+		go.transform.localRotation = meshObject.transform.localRotation;
+	}
+	
+	// void SortVertices(List<Vector3> verts){
+	// 	Vector3 baseVerts = verts[0];
+	// 	verts.Sort((Vector3 a, Vector3 b) => {
+	// 		return 
+	// 	});
+	// }
 
 	List<GameObject> debugPoints = new List<GameObject>();
 	void DebugClearPoint(){
