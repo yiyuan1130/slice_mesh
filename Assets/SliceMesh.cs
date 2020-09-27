@@ -6,26 +6,12 @@ public static class SliceMesh {
 	private static Panel panel;
 	private static Mesh mesh;
 	private static GameObject sliceObj;
-	public static void DoSlice(Panel slice_panel, GameObject slice_go){
-		Debug.Log("====================== do slice ======================");
+	public static Mesh[] DoSlice(Panel slice_panel, GameObject slice_go){
 		DebugPoint.Init(slice_go);
 		panel = slice_panel;
 		mesh = slice_go.GetComponent<MeshFilter>().mesh;
-		Debug.Log("mesh vert -> " + mesh.vertices.Length);
-		Debug.Log("mesh triangles -> " + mesh.triangles.Length);
 		sliceObj = slice_go;
-
-		// List<int[]>[] partsOfTriangles = GetPartOfTriangles();
-		// List<int[]> upTris = partsOfTriangles[0];
-		// List<int[]> downTris = partsOfTriangles[1];
-		// List<int[]> midTris = partsOfTriangles[2];
-		// DebugTris(upTris, Color.blue, 0.02f);
-		// DebugTris(downTris, Color.green, 0.02f);
-		// DebugTris(midTris, Color.red, 0.02f);
-		Mesh[] meshs = _slice();
-		// Mesh upMesh = CreateMesh(upTris, midTris);
-		DebugNewGameObject(meshs[0], "part_up");
-		DebugNewGameObject(meshs[1], "part_down");
+		return _slice();
 	}
 
 	static Mesh[] _slice(){
@@ -128,12 +114,21 @@ public static class SliceMesh {
 					triangles1.Add(count1 + 0);
 					triangles1.Add(count1 + 1);
 					triangles1.Add(count1 + 2);
+					normals1.Add(normal0);
+					normals1.Add(normal1);
+					normals1.Add(normal2);
 
 					int count2 = vertives2.Count;
 					vertives2.Add(p1);
 					vertives2.Add(vert1);
 					vertives2.Add(vert2);
 					vertives2.Add(p2);
+
+					normals2.Add(normal0);
+					normals2.Add(normal1);
+					normals2.Add(normal2);
+					normals2.Add(normal0);
+					
 					triangles2.Add(count2 + 0);
 					triangles2.Add(count2 + 1);
 					triangles2.Add(count2 + 2);
@@ -146,6 +141,9 @@ public static class SliceMesh {
 					vertives2.Add(vert0);
 					vertives2.Add(p1);
 					vertives2.Add(p2);
+					normals2.Add(normal0);
+					normals2.Add(normal1);
+					normals2.Add(normal2);
 					triangles2.Add(count2 + 0);
 					triangles2.Add(count2 + 1);
 					triangles2.Add(count2 + 2);
@@ -155,6 +153,10 @@ public static class SliceMesh {
 					vertives1.Add(vert1);
 					vertives1.Add(vert2);
 					vertives1.Add(p2);
+					normals1.Add(normal0);
+					normals1.Add(normal1);
+					normals1.Add(normal2);
+					normals1.Add(normal0);
 					triangles1.Add(count1 + 0);
 					triangles1.Add(count1 + 1);
 					triangles1.Add(count1 + 2);
@@ -168,12 +170,12 @@ public static class SliceMesh {
 		Mesh mesh1 = new Mesh();
 		mesh1.vertices = vertives1.ToArray();
 		mesh1.triangles = triangles1.ToArray();
-		// mesh1.normals = normals1.ToArray();
+		mesh1.normals = normals1.ToArray();
 
 		Mesh mesh2 = new Mesh();
 		mesh2.vertices = vertives2.ToArray();
 		mesh2.triangles = triangles2.ToArray();
-		// mesh2.normals = normals2.ToArray();
+		mesh2.normals = normals2.ToArray();
 
 		return new Mesh[]{mesh1, mesh2};
 	}
@@ -217,45 +219,6 @@ public static class SliceMesh {
 		ret[2] = midTriangles;
 		return ret;
 	}
-
-	static Mesh CreateMesh(List<int[]> partTriangle, List<int[]> midTriangles){
-		Mesh newMesh = new Mesh();
-		List<Vector3> vertices = new List<Vector3>();
-		List<int> tirangles = new List<int>();
-
-		for (int i = 0; i < partTriangle.Count; i++)
-		{
-			int[] tirangle = partTriangle[i];
-			for (int j = 0; j < tirangle.Length; j++)
-			{
-				Vector3 vert = mesh.vertices[tirangle[j]];
-				vertices.Add(vert);	
-				tirangles.Add(i * 3 + j);	
-			}
-		}
-
-		newMesh.vertices = vertices.ToArray();
-		newMesh.triangles = tirangles.ToArray();
-		return newMesh;
-	}
-
-	// upOrDown 1:up -1:down
-	static void MidVertAndTri(List<int[]> midTriangles, int upOrDown){
-		for (int i = 0; i < midTriangles.Count; i++)
-		{
-			int[] triangle = midTriangles[i];
-			Vector3 vert0 = mesh.vertices[triangle[0]];
-			Vector3 vert1 = mesh.vertices[triangle[1]];
-			Vector3 vert2 = mesh.vertices[triangle[2]];
-			Vector3 worldPos0 = Utility.ObjectToWorldPoint(vert0, sliceObj.transform);
-			Vector3 worldPos1 = Utility.ObjectToWorldPoint(vert1, sliceObj.transform);
-			Vector3 worldPos2 = Utility.ObjectToWorldPoint(vert2, sliceObj.transform);
-			float dis0 = panel.DistanceToPoint(worldPos0);
-			float dis1 = panel.DistanceToPoint(worldPos1);
-			float dis2 = panel.DistanceToPoint(worldPos2);
-		}
-	}
-
 	static void DebugNewGameObject(Mesh mesh, string name){
 		GameObject obj = new GameObject(name);
 		obj.AddComponent<MeshFilter>().mesh = mesh;
@@ -264,16 +227,4 @@ public static class SliceMesh {
 		obj.transform.rotation = sliceObj.transform.rotation;
 		obj.transform.localScale = sliceObj.transform.localScale;
 	}
-
-	static void DebugTris(List<int[]> triangles, Color color, float size){
-		for (int i = 0; i < triangles.Count; i++)
-		{
-			int[] triangle = triangles[i];
-			for (int j = 0; j < triangle.Length; j++)
-			{
-				DebugPoint.Show(mesh.vertices[triangle[j]], color, size);
-			}
-		}
-	}
-
 }
